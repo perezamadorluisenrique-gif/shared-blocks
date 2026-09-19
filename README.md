@@ -1,2 +1,92 @@
-# shared-blocks
-An Obsidian plugin that allows you to have common and shared sections between multiple notes.
+# Shared Blocks
+
+Write a block of text once, in one note, and reuse it anywhere in your vault.
+When you edit the original, every place that references it re-renders while you
+look at it.
+
+Everything happens locally. The plugin reads and renders notes from your vault
+and nothing else: no account, no server, no telemetry, no network access of any
+kind.
+
+## How it works
+
+**Define a block** in any note, between two markers on lines of their own:
+
+```markdown
+==share:contact==
+**Support:** support@example.com
+Office hours: 9:00 – 17:00 CET
+==/share==
+```
+
+The name accepts letters (accented and non-Latin included), digits, `_` and `-`.
+A block with an empty body is ignored, so a half-written block reports itself as
+missing instead of quietly rendering nothing.
+
+**Reference it** from any other note:
+
+```markdown
+==ref:Company handbook^contact==
+```
+
+`Company handbook` is the note holding the definition — the same link text you
+would put in `[[ ]]`, so a bare name, a subfolder path, or anything Obsidian can
+resolve from the note you are writing in. `contact` is the block name.
+
+The reference renders the block's markdown in place, styled as a quoted block.
+Edit the definition and every reference on screen updates, without reopening the
+note.
+
+References can be nested: a shared block may itself contain a reference to
+another one. A cycle is detected and reported in place rather than hanging.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| Refresh all blocks | Rescans the whole vault and re-renders every reference on screen |
+| Show cache stats | Reports how many blocks are currently cached |
+
+You should not normally need the refresh command; it is there for when a block
+goes stale after an edit made outside Obsidian.
+
+## Performance
+
+Opening a vault costs nothing: there is no scan at startup. A block is read the
+first time a reference asks for one, and edits are coalesced rather than handled
+per keystroke. The manual refresh scans in chunks, yielding between them, so a
+large vault does not freeze the window.
+
+## Limitations
+
+- References render in Reading view and in rendered sections of Live Preview.
+  The raw `==ref:…==` text is what you see while you are editing that line.
+- The markers use Obsidian's highlight syntax, so a block definition shows as a
+  highlighted line in its source note.
+- Blocks are matched by note path and block name. Renaming a note is handled;
+  renaming a *block* means updating the references yourself.
+
+## Installing manually
+
+Copy `main.js`, `manifest.json` and `styles.css` into
+`<vault>/.obsidian/plugins/shared-blocks/` and enable the plugin in
+**Settings → Community plugins**.
+
+## Development
+
+```bash
+npm install
+npm run dev     # esbuild in watch mode
+npm run build   # type-check, then a production bundle
+npm test        # unit tests for the parsing and cache logic
+```
+
+Tests run on plain Node with no extra dependency — Node strips the types itself
+from 22.18 onward, which is what `engines` asks for. They cover `src/blocks.ts`,
+the pure half of the plugin: block parsing, reference parsing, cache keys, and
+which blocks changed between two reads of a note. `main.ts` is the only file
+that touches the vault, the metadata cache or the DOM.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

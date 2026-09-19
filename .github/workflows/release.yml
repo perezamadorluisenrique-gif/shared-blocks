@@ -1,0 +1,38 @@
+# Builds the release assets when a version tag is pushed.
+#
+# The tag must match `version` in manifest.json exactly, with no `v` prefix.
+# The release opens as a draft; check the three assets and publish it.
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22 and no lower: the tests run `node --test` straight on .ts files.
+          node-version: '22'
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      - name: Create the draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --title="$TAG" \
+            --draft \
+            main.js manifest.json styles.css

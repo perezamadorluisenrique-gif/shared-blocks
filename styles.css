@@ -1,0 +1,33 @@
+.sb-ref {
+  /* The reference stands in for a block of content, so it occupies a line
+     of its own rather than sitting inline where the marker was. */
+  display: block;
+}
+
+.sb-block-content {
+  border-left: 3px solid var(--color-accent);
+  padding: var(--size-4-2) var(--size-4-4);
+  margin: var(--size-4-2) 0;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+}
+
+.sb-loading {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--font-small);
+}
+
+.sb-error {
+  color: var(--text-error);
+  font-size: var(--font-small);
+  padding: var(--size-4-1) var(--size-4-2);
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-error);
+}
+
+.sb-pending {
+  /* A block being rendered for a live update, kept out of sight until it
+     is complete so the reference never flashes half-drawn content. */
+  display: none;
+}
