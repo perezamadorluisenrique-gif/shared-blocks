@@ -14,9 +14,11 @@
  *   ==/share==
  *
  * The `u` flag makes `\p{L}` a real Unicode letter class, so accented and
- * non-Latin block names are accepted.
+ * non-Latin block names are accepted. `parseBlocks` rebuilds this with
+ * `gmu`; the flag is on the literal as well so the pattern reads the same
+ * way on its own, which TypeScript 5 also insists on.
  */
-const BLOCK_DEF_SOURCE = /^==share:([\w\-\p{L}]+)==\n([\s\S]*?)\n^==\/share==$/;
+const BLOCK_DEF_SOURCE = /^==share:([\w\-\p{L}]+)==\n([\s\S]*?)\n^==\/share==$/u;
 
 /** A reference to a block in another note: `ref:Note name^block`. */
 const REF_SOURCE = /^ref:(.+?)\^([\w\-\p{L}]+)$/u;
