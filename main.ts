@@ -33,7 +33,7 @@ export default class SharedBlocksPlugin extends Plugin {
   private dirtyPaths: Set<string> = new Set();
   private rescanTimer: number | null = null;
 
-  async onload() {
+  onload() {
     // No vault-wide scan here on purpose. Blocks are read the first time a
     // reference asks for one, so opening Obsidian costs nothing regardless
     // of how big the vault is.
@@ -75,7 +75,7 @@ export default class SharedBlocksPlugin extends Plugin {
     );
 
     this.addCommand({
-      id: 'refresh-shared-blocks',
+      id: 'refresh-all-blocks',
       name: 'Refresh all blocks',
       callback: async () => {
         await this.scanVault();
@@ -85,7 +85,7 @@ export default class SharedBlocksPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'show-shared-blocks-stats',
+      id: 'show-cache-stats',
       name: 'Show cache stats',
       callback: () => {
         new Notice(`Shared blocks: ${this.blockCache.size} blocks in cache`);

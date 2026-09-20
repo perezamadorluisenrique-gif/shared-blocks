@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
 import process   from "process";
-import builtins  from "builtin-modules";
+import { builtinModules } from "node:module";
 
 const isProd = process.argv[2] === "production";
 
@@ -21,7 +21,11 @@ const context = await esbuild.context({
     "@lezer/common",
     "@lezer/highlight",
     "@lezer/lr",
-    ...builtins,
+    // Node's own list, in both spellings, in place of the
+    // `builtin-modules` package. Nothing here imports a Node builtin;
+    // this only keeps esbuild from trying to bundle one if that changes.
+    ...builtinModules,
+    ...builtinModules.map((name) => `node:${name}`),
   ],
   format:     "cjs",
   target:     "es2018",

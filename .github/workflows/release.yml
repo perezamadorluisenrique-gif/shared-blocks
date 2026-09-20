@@ -22,6 +22,9 @@ on:
 
 permissions:
   contents: write
+  # Both are required by actions/attest-build-provenance.
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -59,8 +62,34 @@ jobs:
           "
 
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: npm run build
+
+      # A release with no description is a finding in Obsidian's plugin
+      # review, so the notes come from CHANGELOG.md and a missing section
+      # stops the release rather than shipping an empty one.
+      - name: Take the release notes from CHANGELOG.md
+        run: |
+          awk -v version="## $TAG" '
+            $0 == version { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md has no '## $TAG' section to use as release notes." >&2
+            exit 1
+          fi
+          cat release-notes.md
+
+      # Lets anyone verify with `gh attestation verify` that these files were
+      # built by this workflow from this repository.
+      - name: Attest the build provenance of the release assets
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            main.js
+            styles.css
 
       - name: Create the draft release
         env:
@@ -69,5 +98,6 @@ jobs:
           gh release create "$TAG" \
             --title="$TAG" \
             --target "${{ github.sha }}" \
+            --notes-file release-notes.md \
             --draft \
             main.js manifest.json styles.css
