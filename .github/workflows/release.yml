@@ -1,19 +1,18 @@
 # Builds the release assets and opens a draft release.
 #
-# Two ways to start it:
-#   - push a tag, e.g. `git tag 0.1.0 && git push origin 0.1.0`
-#   - Actions -> Release -> Run workflow, giving the version as the tag
+# Start it from Actions -> Release -> Run workflow, giving the version as the
+# tag. That is the only trigger, on purpose. It used to run on a tag push as
+# well, but publishing the draft is what creates the tag, so that trigger fired
+# this same workflow again and left a duplicate draft behind after every
+# release.
 #
-# Either way the tag must equal `version` in manifest.json, with no `v`
-# prefix. The job checks that before building and fails loudly if it drifts,
-# because the community directory reads the two together and a mismatch is
-# only caught after submission.
+# The tag must equal `version` in manifest.json, with no `v` prefix. The job
+# checks that before building and fails loudly if it drifts, because the
+# community directory reads the two together and a mismatch is only caught
+# after submission.
 name: Release
 
 on:
-  push:
-    tags:
-      - '*'
   workflow_dispatch:
     inputs:
       tag:
@@ -30,7 +29,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      TAG: ${{ github.event.inputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
