@@ -1,5 +1,10 @@
 # Shared Blocks
 
+[![Latest release](https://img.shields.io/github/v/release/perezamadorluisenrique-gif/shared-blocks?sort=semver)](https://github.com/perezamadorluisenrique-gif/shared-blocks/releases/latest)
+[![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22shared-blocks%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=shared-blocks)
+[![CI](https://github.com/perezamadorluisenrique-gif/shared-blocks/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/perezamadorluisenrique-gif/shared-blocks/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/perezamadorluisenrique-gif/shared-blocks)](LICENSE)
+
 Write a block of text once, in one note, and reuse it anywhere in your vault.
 When you edit the original, every place that references it re-renders while you
 look at it.
@@ -66,10 +71,13 @@ large vault does not freeze the window.
 - Blocks are matched by note path and block name. Renaming a note is handled;
   renaming a *block* means updating the references yourself.
 
-## Installing manually
+## Installing
 
-Copy `main.js`, `manifest.json` and `styles.css` into
-`<vault>/.obsidian/plugins/shared-blocks/` and enable the plugin in
+In Obsidian, open Settings -> Community plugins -> Browse, search for Shared
+Blocks, then install and enable it.
+
+To install it by hand instead, copy `main.js`, `manifest.json` and
+`styles.css` into `<vault>/.obsidian/plugins/shared-blocks/` and enable the plugin in
 **Settings → Community plugins**.
 
 ## Development
