@@ -1,0 +1,68 @@
+name: Bug report
+description: Something in Shared Blocks does not work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The more exact the steps, the faster it gets fixed.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected to see instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Start from a fresh note if you can. Paste the note text involved, if any.
+      placeholder: |
+        1. Open a note containing ...
+        2. Run the command ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Settings -> Community plugins, next to Shared Blocks.
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      description: Settings -> General -> Current version.
+      placeholder: "1.9.12"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - iOS / iPadOS
+        - Android
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors
+      description: Optional. On desktop, open the developer console (Ctrl+Shift+I, or Cmd+Option+I on macOS) and paste any red errors.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The problem still happens with every other community plugin turned off.
+          required: false
