@@ -95,6 +95,16 @@ the pure half of the plugin: block parsing, reference parsing, cache keys, and
 which blocks changed between two reads of a note. `main.ts` is the only file
 that touches the vault, the metadata cache or the DOM.
 
+## More plugins by Siulved54
+
+| Plugin | What it does | Source |
+| --- | --- | --- |
+| [Text Case and Cleanup](https://obsidian.md/plugins?id=text-format) | Change the case of a selection without touching code, URLs or task boxes, and repair prose pasted out of a PDF. | [text-format](https://github.com/perezamadorluisenrique-gif/text-format) |
+| [Typography as You Type](https://obsidian.md/plugins?id=typography-as-you-type) | Curly quotes, dashes and ellipses as you type, kept out of code and maths, with Backspace to take one back. | [smart-typography-plugin](https://github.com/perezamadorluisenrique-gif/smart-typography-plugin) |
+
+Both are in the community directory: Settings -> Community plugins -> Browse,
+then search for the name.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
