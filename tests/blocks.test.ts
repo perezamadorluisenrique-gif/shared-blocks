@@ -56,6 +56,16 @@ test('parseBlocks ignores a marker that is not at the start of a line', () => {
   assert.equal(parseBlocks('texto ==share:x==\ncuerpo\n==/share==').size, 0);
 });
 
+test('parseBlocks reads a note with Windows line endings', () => {
+  const blocks = parseBlocks('Intro\r\n==share:crlf==\r\nuno\r\ndos\r\n==/share==\r\n');
+  assert.deepEqual([...blocks], [['crlf', 'uno\ndos']]);
+});
+
+test('parseBlocks tolerates trailing spaces after a marker', () => {
+  const blocks = parseBlocks('==share:espacio==  \ncuerpo\n==/share==\t\n');
+  assert.deepEqual([...blocks], [['espacio', 'cuerpo']]);
+});
+
 test('parseBlocks has no state between calls', () => {
   // The regex is global; a shared instance would skip matches on the
   // second call because of its lastIndex.

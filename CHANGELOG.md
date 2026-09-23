@@ -4,6 +4,16 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## 0.2.1
+
+- Blocks defined in a note with Windows line endings are found. A note saved
+  by another editor, or checked out by git on Windows, keeps `\r\n` line
+  endings, and every reference to a block in it reported the block as
+  missing.
+- Spaces or a tab left after `==share:name==` or `==/share==` no longer hide
+  the block. They are invisible in the editor, so the block looked correct
+  and still reported itself as missing.
+
 ## 0.2.0
 
 - The two command IDs no longer repeat the plugin ID, which Obsidian adds
