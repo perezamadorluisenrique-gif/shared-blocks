@@ -18,7 +18,7 @@
  * `gmu`; the flag is on the literal as well so the pattern reads the same
  * way on its own, which TypeScript 5 also insists on.
  */
-const BLOCK_DEF_SOURCE = /^==share:([\w\-\p{L}]+)==\n([\s\S]*?)\n^==\/share==$/u;
+const BLOCK_DEF_SOURCE = /^==share:([\w\-\p{L}]+)==[ \t]*\n([\s\S]*?)\n^==\/share==[ \t]*$/u;
 
 /** A reference to a block in another note: `ref:Note name^block`. */
 const REF_SOURCE = /^ref:(.+?)\^([\w\-\p{L}]+)$/u;
@@ -37,10 +37,16 @@ export interface ParsedRef {
  * Blocks with an empty body are skipped: an empty definition is almost
  * always a half-written block, and rendering nothing where the reader
  * expects content is worse than reporting the block as missing.
+ *
+ * Windows line endings are read as plain ones. A note written by another
+ * editor, or checked out by git on Windows, keeps its `\r\n`, and a marker
+ * followed by `\r` would otherwise never match. So is trailing whitespace
+ * after a marker, which is invisible in the editor.
  */
 export function parseBlocks(content: string): Map<string, string> {
   const blocks = new Map<string, string>();
   const regex = new RegExp(BLOCK_DEF_SOURCE, 'gmu');
+  content = content.replace(/\r\n?/g, '\n');
 
   let match: RegExpExecArray | null;
   while ((match = regex.exec(content)) !== null) {

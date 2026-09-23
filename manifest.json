@@ -1,7 +1,7 @@
 {
   "id": "shared-blocks",
   "name": "Shared Blocks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minAppVersion": "1.3.5",
   "description": "Reuse one block of text in many notes. Edit the block in its source note and every reference re-renders live. Everything stays in your vault, with no network access.",
   "author": "Siulved54",

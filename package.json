@@ -1,6 +1,6 @@
 {
   "name": "shared-blocks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shared blocks plugin for Obsidian - reuse a block of text across notes, updated live.",
   "main": "main.js",
   "scripts": {
