@@ -13,6 +13,11 @@ Everything happens locally. The plugin reads and renders notes from your vault
 and nothing else: no account, no server, no telemetry, no network access of any
 kind.
 
+![Editing a shared block in one note while another note that references it twice updates on screen](https://raw.githubusercontent.com/perezamadorluisenrique-gif/shared-blocks/main/docs/live-update.gif)
+
+_Left: the note that defines the block. Right: a note that uses it twice, in
+Reading view. Editing the definition updates both copies as you type._
+
 ## How it works
 
 **Define a block** in any note, between two markers on lines of their own:
