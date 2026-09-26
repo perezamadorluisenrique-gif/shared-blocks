@@ -6,9 +6,11 @@ import {
   blockNameFromKey,
   changedBlockNames,
   keyBelongsToFile,
+  namesPath,
   parseBlocks,
   parseRef,
   rekey,
+  retargetRefs,
 } from '../src/blocks.ts';
 
 const block = (name: string, body: string) =>
@@ -143,4 +145,25 @@ test('changedBlockNames reports nothing when a note changes elsewhere', () => {
   const blocks = new Map([['uno', 'a']]);
 
   assert.deepEqual(changedBlockNames(blocks, new Map(blocks)), []);
+});
+
+test('namesPath matches a note by name or by the end of its path', () => {
+  assert.equal(namesPath('Handbook', 'Company/Handbook.md'), true);
+  assert.equal(namesPath('Company/Handbook', 'Company/Handbook.md'), true);
+  assert.equal(namesPath('handbook.md', 'Company/Handbook.md'), true);
+  assert.equal(namesPath('book', 'Company/Handbook.md'), false);
+  assert.equal(namesPath('Other/Handbook', 'Company/Handbook.md'), false);
+});
+
+test('retargetRefs rewrites matching references and counts them', () => {
+  const rename = (name: string) => (name === 'Old' ? 'New' : null);
+  const result = retargetRefs('a ==ref:Old^x== b ==ref: Old ^y==\n==ref:Other^x==', rename);
+  assert.equal(result.text, 'a ==ref:New^x== b ==ref:New^y==\n==ref:Other^x==');
+  assert.equal(result.count, 2);
+});
+
+test('retargetRefs leaves references in code alone', () => {
+  const rename = (name: string) => (name === 'Old' ? 'New' : null);
+  const text = '```\n==ref:Old^x==\n```\n`==ref:Old^x==` and ==ref:Old^x==';
+  assert.equal(retargetRefs(text, rename).text, '```\n==ref:Old^x==\n```\n`==ref:Old^x==` and ==ref:New^x==');
 });

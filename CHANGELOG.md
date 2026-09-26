@@ -4,6 +4,14 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## 0.2.3
+
+- Renaming or moving a note that defines shared blocks now updates every
+  `==ref:Old name^block==` that pointed at it, as Obsidian does for ordinary
+  links. Before, every reference to it reported "Note not found" until it
+  was edited by hand. References inside code blocks and inline code are
+  left alone, and a notice says how many were updated.
+
 ## 0.2.2
 
 - Both commands have an icon, so they show what they do instead of a

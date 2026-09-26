@@ -111,3 +111,77 @@ export function changedBlockNames(
 
   return changed;
 }
+
+/**
+ * A reference as written in a note's source, `==ref:Note^block==`. Group 1
+ * is the note name exactly as typed, spaces included.
+ */
+const REF_IN_SOURCE = /==ref:([^=\n]+?)\^([\w\-\p{L}]+)==/gu;
+
+/** A fence that opens or closes a code block. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
+/**
+ * Whether a note name in a reference could have meant the note at `path`:
+ * its name, or the end of its path, with or without `.md`. Obsidian resolves
+ * link text without regard to case, and so does this.
+ */
+export function namesPath(noteName: string, path: string): boolean {
+  const name = noteName.trim().replace(/\.md$/i, '').replace(/^\/+/, '').toLowerCase();
+  const target = path.replace(/\.md$/i, '').toLowerCase();
+  return name !== '' && (target === name || target.endsWith('/' + name));
+}
+
+/**
+ * Rewrites the note name of every reference in `content` that `retarget`
+ * maps to a new one, leaving references inside code blocks and inline code
+ * alone: those are examples, not references. Returns the new text and how
+ * many references changed.
+ */
+export function retargetRefs(
+  content: string,
+  retarget: (noteName: string) => string | null,
+): { text: string; count: number } {
+  let count = 0;
+  let fence: string | null = null;
+
+  const lines = content.split('\n').map((line) => {
+    const open = FENCE.exec(line);
+    if (fence !== null) {
+      if (open && open[1][0] === fence[0] && open[1].length >= fence.length && line.slice(open[0].length).trim() === '') {
+        fence = null;
+      }
+      return line;
+    }
+    if (open) {
+      fence = open[1];
+      return line;
+    }
+
+    const code = inlineCodeRanges(line);
+    return line.replace(REF_IN_SOURCE, (whole: string, name: string, block: string, at: number) => {
+      if (code.some(([from, to]) => at >= from && at < to)) return whole;
+      const next = retarget(name.trim());
+      if (next === null || next === name.trim()) return whole;
+      count++;
+      return `==ref:${next}^${block}==`;
+    });
+  });
+
+  return { text: lines.join('\n'), count };
+}
+
+/** The `[from, to)` column ranges of inline code spans on one line. */
+function inlineCodeRanges(line: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const runs: Array<{ at: number; length: number }> = [];
+  const pattern = /`+/g;
+  for (let m = pattern.exec(line); m; m = pattern.exec(line)) runs.push({ at: m.index, length: m[0].length });
+  for (let i = 0; i < runs.length; i++) {
+    const closer = runs.findIndex((run, j) => j > i && run.length === runs[i].length);
+    if (closer === -1) continue;
+    ranges.push([runs[i].at, runs[closer].at + runs[closer].length]);
+    i = closer;
+  }
+  return ranges;
+}

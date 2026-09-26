@@ -13,9 +13,11 @@ import {
   blockNameFromKey,
   changedBlockNames,
   keyBelongsToFile,
+  namesPath,
   parseBlocks,
   parseRef,
   rekey,
+  retargetRefs,
 } from './src/blocks';
 
 /** Notes scanned per chunk during a full refresh, before yielding. */
@@ -60,7 +62,7 @@ export default class SharedBlocksPlugin extends Plugin {
       this.app.vault.on('rename', (file, oldPath) => {
         if (file instanceof TFile && file.extension === 'md') {
           this.movePathInCache(oldPath, file.path);
-          void this.refreshRefs(null);
+          void this.updateRefsAfterRename(file, oldPath).then(() => this.refreshRefs(null));
         }
       })
     );
@@ -229,6 +231,48 @@ export default class SharedBlocksPlugin extends Plugin {
         this.blockCache.delete(key);
         this.blockCache.set(rekey(key, newPath), value);
       }
+    }
+  }
+
+  /**
+   * Rewrites `==ref:Old name^block==` to the note's new name in every note
+   * that pointed at it, as Obsidian does for ordinary links. Without this a
+   * rename left every reference reporting "Note not found".
+   *
+   * A reference is only rewritten when its name matched the old path and no
+   * longer finds a note, so a reference that happens to share the name with
+   * another note is left pointing at that one.
+   */
+  private async updateRefsAfterRename(file: TFile, oldPath: string): Promise<void> {
+    // A note that defines no block cannot be the target of a reference.
+    if (parseBlocks(await this.app.vault.cachedRead(file)).size === 0) return;
+
+    let refs = 0;
+    let notes = 0;
+    for (const source of this.app.vault.getMarkdownFiles()) {
+      if (!(await this.app.vault.cachedRead(source)).includes('==ref:')) continue;
+
+      const retarget = (noteName: string): string | null => {
+        if (!namesPath(noteName, oldPath)) return null;
+        const dest = this.app.metadataCache.getFirstLinkpathDest(noteName, source.path);
+        if (dest !== null && dest !== file) return null;
+        return this.app.metadataCache.fileToLinktext(file, source.path, true);
+      };
+
+      let changed = 0;
+      await this.app.vault.process(source, (data) => {
+        const result = retargetRefs(data, retarget);
+        changed = result.count;
+        return result.count > 0 ? result.text : data;
+      });
+      if (changed > 0) {
+        refs += changed;
+        notes++;
+      }
+    }
+
+    if (refs > 0) {
+      new Notice(`Shared Blocks: updated ${refs} ${refs === 1 ? 'reference' : 'references'} in ${notes} ${notes === 1 ? 'note' : 'notes'}.`);
     }
   }
 
