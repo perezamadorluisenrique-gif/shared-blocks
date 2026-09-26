@@ -4,6 +4,11 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## 0.2.2
+
+- Both commands have an icon, so they show what they do instead of a
+  question mark when added to the mobile toolbar.
+
 ## 0.2.1
 
 - Blocks defined in a note with Windows line endings are found. A note saved

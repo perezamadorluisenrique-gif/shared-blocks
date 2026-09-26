@@ -77,6 +77,7 @@ export default class SharedBlocksPlugin extends Plugin {
     this.addCommand({
       id: 'refresh-all-blocks',
       name: 'Refresh all blocks',
+      icon: 'refresh-cw',
       callback: async () => {
         await this.scanVault();
         await this.refreshRefs(null);
@@ -87,6 +88,7 @@ export default class SharedBlocksPlugin extends Plugin {
     this.addCommand({
       id: 'show-cache-stats',
       name: 'Show cache stats',
+      icon: 'info',
       callback: () => {
         new Notice(`Shared blocks: ${this.blockCache.size} blocks in cache`);
       },
