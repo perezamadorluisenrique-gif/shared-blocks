@@ -73,8 +73,9 @@ large vault does not freeze the window.
   The raw `==ref:…==` text is what you see while you are editing that line.
 - The markers use Obsidian's highlight syntax, so a block definition shows as a
   highlighted line in its source note.
-- Blocks are matched by note path and block name. Renaming a note is handled;
-  renaming a *block* means updating the references yourself.
+- Blocks are matched by note path and block name. Renaming or moving a note
+  rewrites every `==ref:…==` that pointed at it, the way Obsidian updates
+  ordinary links; renaming a *block* means updating the references yourself.
 
 ## Installing
 
