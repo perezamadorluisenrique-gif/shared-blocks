@@ -4,7 +4,7 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
-## Unreleased
+## 0.3.0
 
 - **Autocomplete for references.** Typing `==ref:` suggests the notes that
   define blocks; after the `^` it suggests that note's blocks and closes the
