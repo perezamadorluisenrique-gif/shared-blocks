@@ -47,6 +47,10 @@ The reference renders the block's markdown in place, styled as a quoted block.
 Edit the definition and every reference on screen updates, without reopening the
 note.
 
+You rarely need to type a reference in full. After `==ref:` the editor
+suggests the notes that define blocks; pick one and it suggests that note's
+blocks, then closes the reference for you.
+
 References can be nested: a shared block may itself contain a reference to
 another one. A cycle is detected and reported in place rather than hanging.
 
@@ -54,6 +58,8 @@ another one. A cycle is detected and reported in place rather than hanging.
 
 | Command | What it does |
 |---|---|
+| Share selection as a block | Wraps the selected text in `==share:…==` markers after asking for a name, and copies a reference to it, ready to paste into another note |
+| Insert reference to a block | Searches every block in the vault by name, note or text, and inserts a reference to the one you pick |
 | Refresh all blocks | Rescans the whole vault and re-renders every reference on screen |
 | Show cache stats | Reports how many blocks are currently cached |
 
@@ -105,11 +111,14 @@ that touches the vault, the metadata cache or the DOM.
 
 | Plugin | What it does | Source |
 | --- | --- | --- |
-| [Text Case and Cleanup](https://obsidian.md/plugins?id=text-format) | Change the case of a selection without touching code, URLs or task boxes, and repair prose pasted out of a PDF. | [text-format](https://github.com/perezamadorluisenrique-gif/text-format) |
+| [Text Case and Cleanup](https://obsidian.md/plugins?id=text-format) | Change case, make camelCase or slugs, sort lines and remove duplicates, and repair text pasted out of a PDF, without touching code or URLs. | [text-format](https://github.com/perezamadorluisenrique-gif/text-format) |
 | [Typography as You Type](https://obsidian.md/plugins?id=typography-as-you-type) | Curly quotes, dashes and ellipses as you type, kept out of code and maths, with Backspace to take one back. | [smart-typography-plugin](https://github.com/perezamadorluisenrique-gif/smart-typography-plugin) |
+| [Section Numbering](https://obsidian.md/plugins?id=section-numbering) | Number headings as an outline (1, 1.1, 1.2) and keep every link to them working when they renumber. | [section-numbering](https://github.com/perezamadorluisenrique-gif/section-numbering) |
+| [Spreadsheet to Table](https://obsidian.md/plugins?id=spreadsheet-to-table) | Paste cells from Excel or Google Sheets as a Markdown table with a real header, insert CSV files, and copy tables back out. | [spreadsheet-to-table](https://github.com/perezamadorluisenrique-gif/spreadsheet-to-table) |
+| [Hybrid Line Numbers](https://obsidian.md/plugins?id=hybrid-line-numbers) | Relative and hybrid line numbers for Vim-style jumps, where a folded section counts as one line. | [hybrid-line-numbers](https://github.com/perezamadorluisenrique-gif/hybrid-line-numbers) |
 
-Both are in the community directory: Settings -> Community plugins -> Browse,
-then search for the name.
+All of them are in the community directory: Settings -> Community plugins ->
+Browse, then search for the name.
 
 ## License
 

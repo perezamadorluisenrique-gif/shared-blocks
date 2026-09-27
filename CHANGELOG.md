@@ -4,6 +4,17 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## 0.3.0
+
+- **Autocomplete for references.** Typing `==ref:` suggests the notes that
+  define blocks; after the `^` it suggests that note's blocks and closes the
+  reference when you pick one.
+- **Share selection as a block**: wraps the selected text in block markers
+  after asking for a name (letters, digits, `_` and `-`), and copies a
+  reference to it so it can be pasted straight into another note.
+- **Insert reference to a block**: a searchable list of every block in the
+  vault, with the start of each block's text, that inserts a reference.
+
 ## 0.2.3
 
 - Renaming or moving a note that defines shared blocks now updates every

@@ -31,3 +31,14 @@
      is complete so the reference never flashes half-drawn content. */
   display: none;
 }
+
+.sb-suggest-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.sb-name-problem {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  min-height: 1.5em;
+}
