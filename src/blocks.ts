@@ -185,3 +185,78 @@ function inlineCodeRanges(line: string): Array<[number, number]> {
   }
   return ranges;
 }
+
+/** A block name: letters (any script), digits, `_` and `-`. */
+const BLOCK_NAME = /^[\w\-\p{L}]+$/u;
+
+/** True when `name` can be used as a block name. */
+export function isValidBlockName(name: string): boolean {
+  return BLOCK_NAME.test(name);
+}
+
+/**
+ * What the reference being typed at the cursor still needs, read from the
+ * line up to the cursor:
+ *
+ * - `==ref:Comp` → the note, with `Comp` typed so far;
+ * - `==ref:Company handbook^con` → a block of that note, with `con` so far.
+ *
+ * `start` is the column where the typed part begins, which is what a chosen
+ * suggestion replaces. Returns null when the cursor is not inside an
+ * unfinished reference.
+ */
+export type RefQuery =
+  | { stage: 'note'; query: string; start: number }
+  | { stage: 'block'; noteName: string; query: string; start: number };
+
+export function refQueryAt(beforeCursor: string): RefQuery | null {
+  const open = beforeCursor.lastIndexOf('==ref:');
+  if (open === -1) return null;
+
+  const typed = beforeCursor.slice(open + '==ref:'.length);
+  // A closing `==` means the reference is already finished.
+  if (typed.includes('==')) return null;
+
+  const caret = typed.lastIndexOf('^');
+  if (caret === -1) {
+    return { stage: 'note', query: typed, start: open + '==ref:'.length };
+  }
+
+  const query = typed.slice(caret + 1);
+  if (query !== '' && !isValidBlockName(query)) return null;
+  const noteName = typed.slice(0, caret).trim();
+  if (noteName === '') return null;
+  return { stage: 'block', noteName, query, start: open + '==ref:'.length + caret + 1 };
+}
+
+/**
+ * A block name made from the first words of `text`: lowercase, joined by
+ * `-`, markdown punctuation dropped. Falls back to `block` when nothing
+ * usable is left.
+ */
+export function suggestBlockName(text: string): string {
+  const words = text
+    .replace(/[^\w\-\p{L}\s]+/gu, ' ')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word !== '' && word !== '-')
+    .slice(0, 4);
+  const name = words.join('-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+  return name === '' ? 'block' : name.slice(0, 40).replace(/-$/, '');
+}
+
+/**
+ * The selection wrapped as a block definition. The markers go on lines of
+ * their own, so a selection that starts or ends mid-line is split there.
+ */
+export function wrapAsBlock(
+  before: string,
+  selection: string,
+  after: string,
+  name: string,
+): string {
+  const lead = before === '' || before.endsWith('\n') ? '' : '\n';
+  const tail = after === '' || after.startsWith('\n') ? '' : '\n';
+  const body = selection.replace(/^\n+|\n+$/g, '');
+  return `${lead}==share:${name}==\n${body}\n==/share==${tail}`;
+}

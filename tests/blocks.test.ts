@@ -167,3 +167,52 @@ test('retargetRefs leaves references in code alone', () => {
   const text = '```\n==ref:Old^x==\n```\n`==ref:Old^x==` and ==ref:Old^x==';
   assert.equal(retargetRefs(text, rename).text, '```\n==ref:Old^x==\n```\n`==ref:Old^x==` and ==ref:New^x==');
 });
+
+import { isValidBlockName, refQueryAt, suggestBlockName, wrapAsBlock } from '../src/blocks.ts';
+
+test('refQueryAt asks for a note right after ==ref:', () => {
+  assert.deepEqual(refQueryAt('See ==ref:Comp'), { stage: 'note', query: 'Comp', start: 10 });
+  assert.deepEqual(refQueryAt('==ref:'), { stage: 'note', query: '', start: 6 });
+});
+
+test('refQueryAt asks for a block after the caret', () => {
+  assert.deepEqual(refQueryAt('==ref:Company handbook^con'), {
+    stage: 'block',
+    noteName: 'Company handbook',
+    query: 'con',
+    start: 23,
+  });
+  assert.deepEqual(refQueryAt('x ==ref:Folder/Note^'), {
+    stage: 'block',
+    noteName: 'Folder/Note',
+    query: '',
+    start: 20,
+  });
+});
+
+test('refQueryAt ignores finished references and plain text', () => {
+  assert.equal(refQueryAt('==ref:Note^block== and more'), null);
+  assert.equal(refQueryAt('no reference here'), null);
+  assert.equal(refQueryAt('==ref:^abc'), null);
+  assert.equal(refQueryAt('==ref:Note^bad name'), null);
+});
+
+test('isValidBlockName accepts letters in any script, digits, _ and -', () => {
+  assert.ok(isValidBlockName('contacto-oficina_2'));
+  assert.ok(isValidBlockName('überblick'));
+  assert.ok(!isValidBlockName('two words'));
+  assert.ok(!isValidBlockName(''));
+  assert.ok(!isValidBlockName('a^b'));
+});
+
+test('suggestBlockName takes the first words of the selection', () => {
+  assert.equal(suggestBlockName('**Support:** support@example.com\nOffice hours'), 'support-support-example-com');
+  assert.equal(suggestBlockName('Dirección de la oficina central y más'), 'dirección-de-la-oficina');
+  assert.equal(suggestBlockName('***'), 'block');
+});
+
+test('wrapAsBlock puts the markers on lines of their own', () => {
+  assert.equal(wrapAsBlock('', 'Hello\nWorld', '', 'greet'), '==share:greet==\nHello\nWorld\n==/share==');
+  assert.equal(wrapAsBlock('Intro ', 'Hello', ' outro', 'g'), '\n==share:g==\nHello\n==/share==\n');
+  assert.equal(wrapAsBlock('Intro\n', 'Hello\n', '\nNext', 'g'), '==share:g==\nHello\n==/share==');
+});

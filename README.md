@@ -47,6 +47,10 @@ The reference renders the block's markdown in place, styled as a quoted block.
 Edit the definition and every reference on screen updates, without reopening the
 note.
 
+You rarely need to type a reference in full. After `==ref:` the editor
+suggests the notes that define blocks; pick one and it suggests that note's
+blocks, then closes the reference for you.
+
 References can be nested: a shared block may itself contain a reference to
 another one. A cycle is detected and reported in place rather than hanging.
 
@@ -54,6 +58,8 @@ another one. A cycle is detected and reported in place rather than hanging.
 
 | Command | What it does |
 |---|---|
+| Share selection as a block | Wraps the selected text in `==share:…==` markers after asking for a name, and copies a reference to it, ready to paste into another note |
+| Insert reference to a block | Searches every block in the vault by name, note or text, and inserts a reference to the one you pick |
 | Refresh all blocks | Rescans the whole vault and re-renders every reference on screen |
 | Show cache stats | Reports how many blocks are currently cached |
 

@@ -1,10 +1,20 @@
 import {
+  App,
   Component,
+  Editor,
+  EditorPosition,
+  EditorSuggest,
+  EditorSuggestContext,
+  EditorSuggestTriggerInfo,
+  FuzzyMatch,
+  FuzzySuggestModal,
   MarkdownPostProcessorContext,
   MarkdownRenderChild,
   MarkdownRenderer,
+  Modal,
   Notice,
   Plugin,
+  Setting,
   TFile,
 } from 'obsidian';
 
@@ -12,12 +22,16 @@ import {
   blockCacheKey,
   blockNameFromKey,
   changedBlockNames,
+  isValidBlockName,
   keyBelongsToFile,
   namesPath,
   parseBlocks,
   parseRef,
+  refQueryAt,
   rekey,
   retargetRefs,
+  suggestBlockName,
+  wrapAsBlock,
 } from './src/blocks';
 
 /** Notes scanned per chunk during a full refresh, before yielding. */
@@ -25,6 +39,16 @@ const SCAN_CHUNK_SIZE = 50;
 
 /** Trailing delay for coalescing rapid `modify` events, in milliseconds. */
 const RESCAN_DELAY = 250;
+
+/** Characters of a block's body shown next to it in a suggestion. */
+const PREVIEW_LENGTH = 80;
+
+/** One block defined somewhere in the vault. */
+interface BlockEntry {
+  file: TFile;
+  name: string;
+  body: string;
+}
 
 export default class SharedBlocksPlugin extends Plugin {
   /** `path::block` to block content, filled in lazily as blocks are needed. */
@@ -34,6 +58,12 @@ export default class SharedBlocksPlugin extends Plugin {
   /** Notes modified since the last rescan, and the timer that will drain them. */
   private dirtyPaths: Set<string> = new Set();
   private rescanTimer: number | null = null;
+  /**
+   * The first vault scan, started the first time something needs the list
+   * of every block (autocomplete or the insert command). After it, the
+   * modify and create handlers keep the cache complete.
+   */
+  private fullScan: Promise<void> | null = null;
 
   onload() {
     // No vault-wide scan here on purpose. Blocks are read the first time a
@@ -87,6 +117,38 @@ export default class SharedBlocksPlugin extends Plugin {
       },
     });
 
+    this.registerEditorSuggest(new RefSuggest(this.app, this));
+
+    this.addCommand({
+      id: 'insert-reference',
+      name: 'Insert reference to a block',
+      icon: 'text-quote',
+      editorCallback: (editor, ctx) => {
+        const sourcePath = ctx.file?.path ?? '';
+        void this.allBlocks().then((blocks) => {
+          if (blocks.length === 0) {
+            new Notice('Shared Blocks: no blocks defined yet. Select some text and run "Share selection as a block".');
+            return;
+          }
+          new BlockPicker(this.app, blocks, (entry) => {
+            editor.replaceSelection(this.refText(entry, sourcePath));
+          }).open();
+        });
+      },
+    });
+
+    this.addCommand({
+      id: 'share-selection',
+      name: 'Share selection as a block',
+      icon: 'square-plus',
+      editorCheckCallback: (checking, editor, ctx) => {
+        const file = ctx.file;
+        if (!file || editor.getSelection().trim() === '') return false;
+        if (!checking) this.shareSelection(editor, file);
+        return true;
+      },
+    });
+
     this.addCommand({
       id: 'show-cache-stats',
       name: 'Show cache stats',
@@ -102,6 +164,57 @@ export default class SharedBlocksPlugin extends Plugin {
       window.clearTimeout(this.rescanTimer);
       this.rescanTimer = null;
     }
+  }
+
+  // ── Finding and inserting blocks ───────────────────────────────────────
+
+  /** Every block in the vault, scanning it the first time this is asked. */
+  async allBlocks(): Promise<BlockEntry[]> {
+    if (this.fullScan === null) this.fullScan = this.scanVault();
+    await this.fullScan;
+
+    const entries: BlockEntry[] = [];
+    for (const [key, body] of this.blockCache) {
+      const path = key.slice(0, key.length - blockNameFromKey(key).length - 2);
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) entries.push({ file, name: blockNameFromKey(key), body });
+    }
+    entries.sort((a, b) => a.file.path.localeCompare(b.file.path) || a.name.localeCompare(b.name));
+    return entries;
+  }
+
+  /** The link text a note in `sourcePath` would use for the entry's note. */
+  linkText(file: TFile, sourcePath: string): string {
+    return this.app.metadataCache.fileToLinktext(file, sourcePath, true);
+  }
+
+  refText(entry: BlockEntry, sourcePath: string): string {
+    return `==ref:${this.linkText(entry.file, sourcePath)}^${entry.name}==`;
+  }
+
+  /**
+   * Wraps the selection in block markers, after asking for a name, and
+   * copies a reference to it so it can be pasted straight into another note.
+   */
+  private shareSelection(editor: Editor, file: TFile): void {
+    const from = editor.getCursor('from');
+    const to = editor.getCursor('to');
+    const selection = editor.getRange(from, to);
+    const taken = new Set(parseBlocks(editor.getValue()).keys());
+
+    new BlockNameModal(this.app, suggestBlockName(selection), taken, (name) => {
+      const before = editor.getRange({ line: from.line, ch: 0 }, from);
+      const after = editor.getRange(to, { line: to.line, ch: editor.getLine(to.line).length });
+      editor.transaction({
+        changes: [{ from, to, text: wrapAsBlock(before, selection, after, name) }],
+      });
+
+      const ref = `==ref:${file.basename}^${name}==`;
+      navigator.clipboard.writeText(ref).then(
+        () => new Notice(`Shared block "${name}" created. Reference copied: ${ref}`),
+        () => new Notice(`Shared block "${name}" created. Reference: ${ref}`),
+      );
+    }).open();
   }
 
   // ── Reference bookkeeping ──────────────────────────────────────────────
@@ -468,6 +581,171 @@ class SharedBlockRef extends MarkdownRenderChild {
   private showError(message: string): void {
     this.clearContent();
     this.containerEl.createSpan({ cls: 'sb-error', text: `\u26a0 ${message}` });
+  }
+}
+
+/** A block shown in a list: its name, its note, and the start of its text. */
+function renderEntry(entry: BlockEntry, el: HTMLElement): void {
+  el.createDiv({ text: entry.name, cls: 'sb-suggest-name' });
+  const preview = entry.body.replace(/\s+/g, ' ');
+  el.createDiv({
+    text: `${entry.file.basename} · ${preview.length > PREVIEW_LENGTH ? preview.slice(0, PREVIEW_LENGTH) + '…' : preview}`,
+    cls: 'sb-suggest-note',
+  });
+}
+
+/** Search every block by name, note and text; picking one inserts a reference. */
+class BlockPicker extends FuzzySuggestModal<BlockEntry> {
+  constructor(
+    app: App,
+    private blocks: BlockEntry[],
+    private onChoose: (entry: BlockEntry) => void,
+  ) {
+    super(app);
+    this.setPlaceholder('Search shared blocks by name, note or text');
+  }
+
+  getItems(): BlockEntry[] {
+    return this.blocks;
+  }
+
+  getItemText(entry: BlockEntry): string {
+    return `${entry.name} ${entry.file.path} ${entry.body}`;
+  }
+
+  renderSuggestion(match: FuzzyMatch<BlockEntry>, el: HTMLElement): void {
+    renderEntry(match.item, el);
+  }
+
+  onChooseItem(entry: BlockEntry): void {
+    this.onChoose(entry);
+  }
+}
+
+/** Asks for the name of a new block, refusing names that can't be used. */
+class BlockNameModal extends Modal {
+  constructor(
+    app: App,
+    private name: string,
+    private taken: Set<string>,
+    private onSubmit: (name: string) => void,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    this.titleEl.setText('Share selection as a block');
+    const problem = this.contentEl.createDiv({ cls: 'sb-name-problem' });
+    const submit = () => {
+      const name = this.name.trim();
+      if (!isValidBlockName(name)) {
+        problem.setText('Use letters, digits, _ and - only, with no spaces.');
+      } else if (this.taken.has(name)) {
+        problem.setText(`This note already has a block named "${name}".`);
+      } else {
+        this.close();
+        this.onSubmit(name);
+      }
+    };
+
+    new Setting(this.contentEl).setName('Block name').addText((text) => {
+      text.setValue(this.name).onChange((value) => {
+        this.name = value;
+        problem.setText('');
+      });
+      text.inputEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          submit();
+        }
+      });
+      window.setTimeout(() => text.inputEl.select(), 0);
+    });
+    new Setting(this.contentEl).addButton((button) => button.setButtonText('Share').setCta().onClick(submit));
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
+/**
+ * Completes a reference as it is typed: after `==ref:` it offers the notes
+ * that define blocks, and after `^` the blocks of that note.
+ */
+class RefSuggest extends EditorSuggest<BlockEntry> {
+  constructor(
+    app: App,
+    private plugin: SharedBlocksPlugin,
+  ) {
+    super(app);
+  }
+
+  onTrigger(cursor: EditorPosition, editor: Editor): EditorSuggestTriggerInfo | null {
+    const query = refQueryAt(editor.getLine(cursor.line).slice(0, cursor.ch));
+    if (query === null) return null;
+    return {
+      start: { line: cursor.line, ch: query.start },
+      end: cursor,
+      query: editor.getLine(cursor.line).slice(query.start, cursor.ch),
+    };
+  }
+
+  async getSuggestions(context: EditorSuggestContext): Promise<BlockEntry[]> {
+    const line = context.editor.getLine(context.start.line).slice(0, context.end.ch);
+    const query = refQueryAt(line);
+    if (query === null) return [];
+    const sourcePath = context.file?.path ?? '';
+    const blocks = await this.plugin.allBlocks();
+
+    if (query.stage === 'note') {
+      // One entry per note, the first of its blocks standing in for it.
+      const needle = query.query.toLowerCase();
+      const seen = new Set<string>();
+      return blocks.filter((entry) => {
+        if (seen.has(entry.file.path)) return false;
+        seen.add(entry.file.path);
+        return entry.file.path.toLowerCase().includes(needle);
+      });
+    }
+
+    const file = this.app.metadataCache.getFirstLinkpathDest(query.noteName, sourcePath);
+    const needle = query.query.toLowerCase();
+    return blocks.filter((entry) => entry.file === file && entry.name.toLowerCase().includes(needle));
+  }
+
+  renderSuggestion(entry: BlockEntry, el: HTMLElement): void {
+    const context = this.context;
+    const line = context ? context.editor.getLine(context.start.line).slice(0, context.end.ch) : '';
+    if (refQueryAt(line)?.stage === 'note') {
+      el.createDiv({ text: entry.file.basename, cls: 'sb-suggest-name' });
+      el.createDiv({ text: entry.file.path, cls: 'sb-suggest-note' });
+    } else {
+      renderEntry(entry, el);
+    }
+  }
+
+  selectSuggestion(entry: BlockEntry): void {
+    const context = this.context;
+    if (!context) return;
+    const { editor, start, end } = context;
+    const line = editor.getLine(start.line);
+    const stage = refQueryAt(line.slice(0, end.ch))?.stage;
+    const sourcePath = context.file?.path ?? '';
+    // Whatever of the reference is already typed after the cursor is replaced too.
+    const rest = line.slice(end.ch);
+    const tail = /^[^\s=]*(==)?/.exec(rest)?.[0] ?? '';
+    const to = { line: end.line, ch: end.ch + tail.length };
+
+    if (stage === 'note') {
+      const text = `${this.plugin.linkText(entry.file, sourcePath)}^`;
+      editor.replaceRange(text, start, to);
+      editor.setCursor({ line: start.line, ch: start.ch + text.length });
+    } else {
+      const text = `${entry.name}==`;
+      editor.replaceRange(text, start, to);
+      editor.setCursor({ line: start.line, ch: start.ch + text.length });
+    }
   }
 }
 
