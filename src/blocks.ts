@@ -260,3 +260,58 @@ export function wrapAsBlock(
   const body = selection.replace(/^\n+|\n+$/g, '');
   return `${lead}==share:${name}==\n${body}\n==/share==${tail}`;
 }
+
+/** A reference standing on a line of its own, as found by `refLines`. */
+export interface RefLine extends ParsedRef {
+  /** Zero-based line number. */
+  line: number;
+}
+
+/** A line that holds nothing but `==ref:Note^block==`. */
+const REF_LINE = /^[ \t]*==(ref:[^=]+?)==[ \t]*$/;
+
+/** An opening or closing code fence. */
+const FENCE_LINE = /^[ \t]{0,3}(`{3,}|~{3,})/;
+
+/**
+ * Every reference that stands on a line of its own, outside front matter
+ * and fenced code. These are the ones the editor can show rendered in
+ * place of the marker, the way an embed is; a reference in the middle of
+ * a sentence stays as text there.
+ */
+export function refLines(lines: readonly string[]): RefLine[] {
+  const found: RefLine[] = [];
+  let fence: string | null = null;
+  let i = 0;
+
+  if (lines.length > 0 && lines[0].trimEnd() === '---') {
+    for (i = 1; i < lines.length && lines[i].trimEnd() !== '---'; i++);
+    i++;
+  }
+
+  for (; i < lines.length; i++) {
+    const text = lines[i];
+    const fenceMatch = text.match(FENCE_LINE);
+    if (fenceMatch) {
+      const marker = fenceMatch[1];
+      if (fence === null) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      continue;
+    }
+    if (fence !== null) continue;
+
+    const match = text.match(REF_LINE);
+    const ref = match ? parseRef(match[1]) : null;
+    if (ref) found.push({ line: i, ...ref });
+  }
+  return found;
+}
+
+/**
+ * The zero-based line where block `name` is defined in `content`, or -1.
+ */
+export function definitionLine(content: string, name: string): number {
+  const lines = content.replace(/\r\n?/g, '\n').split('\n');
+  const marker = `==share:${name}==`;
+  return lines.findIndex((line) => line.trimEnd() === marker);
+}

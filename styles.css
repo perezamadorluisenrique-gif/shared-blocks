@@ -42,3 +42,9 @@
   font-size: var(--font-ui-small);
   min-height: 1.5em;
 }
+
+.sb-live {
+  /* In Live Preview the rendered block sits where the marker line was; a
+     click on it goes back to the marker, so it reads as editable text. */
+  cursor: text;
+}
