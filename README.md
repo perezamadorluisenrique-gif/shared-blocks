@@ -43,9 +43,14 @@ missing instead of quietly rendering nothing.
 would put in `[[ ]]`, so a bare name, a subfolder path, or anything Obsidian can
 resolve from the note you are writing in. `contact` is the block name.
 
-The reference renders the block's markdown in place, styled as a quoted block.
+The reference renders the block's markdown in place, styled as a quoted block,
+in Reading view and in Live Preview alike. In Live Preview a reference on a line
+of its own shows as the rendered block, the way an embed does, and turns back
+into its `==ref:…==` text when you click it or move the cursor onto its line.
 Edit the definition and every reference on screen updates, without reopening the
 note.
+
+![A note in Live Preview showing two shared blocks rendered in place, one nested inside the other](https://raw.githubusercontent.com/perezamadorluisenrique-gif/shared-blocks/main/docs/live-preview.png)
 
 You rarely need to type a reference in full. After `==ref:` the editor
 suggests the notes that define blocks; pick one and it suggests that note's
@@ -60,6 +65,7 @@ another one. A cycle is detected and reported in place rather than hanging.
 |---|---|
 | Share selection as a block | Wraps the selected text in `==share:…==` markers after asking for a name, and copies a reference to it, ready to paste into another note |
 | Insert reference to a block | Searches every block in the vault by name, note or text, and inserts a reference to the one you pick |
+| Open the block referenced on this line | Opens the note that defines the block, with the cursor on its `==share:…==` marker |
 | Refresh all blocks | Rescans the whole vault and re-renders every reference on screen |
 | Show cache stats | Reports how many blocks are currently cached |
 
@@ -75,8 +81,9 @@ large vault does not freeze the window.
 
 ## Limitations
 
-- References render in Reading view and in rendered sections of Live Preview.
-  The raw `==ref:…==` text is what you see while you are editing that line.
+- In Live Preview only a reference on a line of its own is rendered. One in
+  the middle of a sentence renders in Reading view and stays as highlighted
+  text while you edit.
 - The markers use Obsidian's highlight syntax, so a block definition shows as a
   highlighted line in its source note.
 - Blocks are matched by note path and block name. Renaming or moving a note

@@ -4,6 +4,16 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## Unreleased
+
+- **Blocks render in Live Preview.** A reference on a line of its own now
+  shows the rendered block while you edit, like an embed, and turns back into
+  its `==ref:…==` text when you click it or move the cursor onto its line.
+  Before, blocks only rendered in Reading view, which on mobile meant almost
+  never.
+- New command **Open the block referenced on this line**: jumps to the note
+  that defines the block, with the cursor on its marker.
+
 ## 0.3.0
 
 - **Autocomplete for references.** Typing `==ref:` suggests the notes that

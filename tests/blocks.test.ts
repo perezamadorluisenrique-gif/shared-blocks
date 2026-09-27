@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   blockCacheKey,
   blockNameFromKey,
+  definitionLine,
+  refLines,
   changedBlockNames,
   keyBelongsToFile,
   namesPath,
@@ -215,4 +217,29 @@ test('wrapAsBlock puts the markers on lines of their own', () => {
   assert.equal(wrapAsBlock('', 'Hello\nWorld', '', 'greet'), '==share:greet==\nHello\nWorld\n==/share==');
   assert.equal(wrapAsBlock('Intro ', 'Hello', ' outro', 'g'), '\n==share:g==\nHello\n==/share==\n');
   assert.equal(wrapAsBlock('Intro\n', 'Hello\n', '\nNext', 'g'), '==share:g==\nHello\n==/share==');
+});
+
+test('refLines finds references on lines of their own', () => {
+  const lines = [
+    '---',
+    'x: ==ref:A^b==',
+    '---',
+    '==ref:Note^intro==',
+    '  ==ref:Other note^signature==  ',
+    'Text ==ref:A^inline== text',
+    '```',
+    '==ref:A^code==',
+    '```',
+    '==ref:Folder/Note^é-1==',
+  ];
+  assert.deepEqual(refLines(lines), [
+    { line: 3, noteName: 'Note', blockName: 'intro' },
+    { line: 4, noteName: 'Other note', blockName: 'signature' },
+    { line: 9, noteName: 'Folder/Note', blockName: 'é-1' },
+  ]);
+});
+
+test('definitionLine finds the share marker', () => {
+  assert.equal(definitionLine('a\r\n==share:x==\r\nbody\r\n==/share==', 'x'), 1);
+  assert.equal(definitionLine('==share:xy==\nb\n==/share==', 'x'), -1);
 });

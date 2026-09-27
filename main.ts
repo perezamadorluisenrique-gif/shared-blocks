@@ -16,17 +16,25 @@ import {
   Plugin,
   Setting,
   TFile,
+  editorInfoField,
+  editorLivePreviewField,
 } from 'obsidian';
+import { RangeSetBuilder, StateField } from '@codemirror/state';
+import type { EditorState, Extension } from '@codemirror/state';
+import { Decoration, EditorView, WidgetType } from '@codemirror/view';
+import type { DecorationSet } from '@codemirror/view';
 
 import {
   blockCacheKey,
   blockNameFromKey,
   changedBlockNames,
+  definitionLine,
   isValidBlockName,
   keyBelongsToFile,
   namesPath,
   parseBlocks,
   parseRef,
+  refLines,
   refQueryAt,
   rekey,
   retargetRefs,
@@ -71,6 +79,7 @@ export default class SharedBlocksPlugin extends Plugin {
     // of how big the vault is.
 
     this.registerMarkdownPostProcessor((el, ctx) => this.processElement(el, ctx));
+    this.registerEditorExtension(this.livePreviewExtension());
 
     this.registerEvent(
       this.app.vault.on('modify', (file) => {
@@ -145,6 +154,20 @@ export default class SharedBlocksPlugin extends Plugin {
         const file = ctx.file;
         if (!file || editor.getSelection().trim() === '') return false;
         if (!checking) this.shareSelection(editor, file);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: 'open-block-definition',
+      name: 'Open the block referenced on this line',
+      icon: 'square-arrow-out-up-right',
+      editorCheckCallback: (checking, editor, ctx) => {
+        const line = editor.getLine(editor.getCursor().line);
+        const match = line.match(/==(ref:[^=]+?)==/);
+        const ref = match ? parseRef(match[1]) : null;
+        if (!ref) return false;
+        if (!checking) void this.openDefinition(ref.noteName, ref.blockName, ctx.file?.path ?? '');
         return true;
       },
     });
@@ -400,7 +423,70 @@ export default class SharedBlocksPlugin extends Plugin {
     return this.blockCache.get(key);
   }
 
+  /** Opens the note that defines a block, with the cursor on its marker. */
+  async openDefinition(noteName: string, blockName: string, sourcePath: string): Promise<void> {
+    const file = this.app.metadataCache.getFirstLinkpathDest(noteName, sourcePath);
+    if (!file) {
+      new Notice(`Shared Blocks: note "${noteName}" not found.`);
+      return;
+    }
+    const line = definitionLine(await this.app.vault.cachedRead(file), blockName);
+    if (line < 0) {
+      new Notice(`Shared Blocks: block "${blockName}" not found in "${noteName}".`);
+      return;
+    }
+    await this.app.workspace.getLeaf(false).openFile(file, {
+      eState: { line, cursor: { from: { line, ch: 0 }, to: { line, ch: 0 } } },
+    });
+  }
+
   // ── Rendering ──────────────────────────────────────────────────────────
+
+  /**
+   * Live Preview: a reference on a line of its own is shown rendered, the
+   * way an embed is, and turns back into its `==ref:…==` text as soon as the
+   * cursor or a selection touches that line. Source mode and Reading view
+   * are unaffected; the latter goes through `processElement`.
+   */
+  private livePreviewExtension(): Extension {
+    const build = (state: EditorState): DecorationSet => {
+      if (!state.field(editorLivePreviewField, false)) return Decoration.none;
+      const sourcePath = state.field(editorInfoField, false)?.file?.path ?? '';
+      const doc = state.doc;
+      const lines: string[] = [];
+      for (let i = 1; i <= doc.lines; i++) lines.push(doc.line(i).text);
+
+      const builder = new RangeSetBuilder<Decoration>();
+      for (const ref of refLines(lines)) {
+        const line = doc.line(ref.line + 1);
+        const touched = state.selection.ranges.some((r) => r.from <= line.to && r.to >= line.from);
+        if (touched) continue;
+        builder.add(
+          line.from,
+          line.to,
+          Decoration.replace({
+            widget: new RefWidget(this, ref.noteName, ref.blockName, sourcePath),
+            block: true,
+          }),
+        );
+      }
+      return builder.finish();
+    };
+
+    return StateField.define<DecorationSet>({
+      create: build,
+      update(value, transaction) {
+        // The Live Preview flag changes through an effect, not the document.
+        const modeChanged =
+          transaction.startState.field(editorLivePreviewField, false) !==
+          transaction.state.field(editorLivePreviewField, false);
+        if (!transaction.docChanged && !transaction.selection && !modeChanged) return value;
+        return build(transaction.state);
+      },
+      provide: (field) => EditorView.decorations.from(field),
+    });
+  }
+
 
   private processElement(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
     Array.from(el.querySelectorAll('mark')).forEach((mark) => {
@@ -581,6 +667,57 @@ class SharedBlockRef extends MarkdownRenderChild {
   private showError(message: string): void {
     this.clearContent();
     this.containerEl.createSpan({ cls: 'sb-error', text: `\u26a0 ${message}` });
+  }
+}
+
+/**
+ * A reference drawn in the editor. It renders through the same
+ * `SharedBlockRef` as Reading view, so live updates, nested references and
+ * cycle detection all behave the same; the widget only owns its lifetime.
+ */
+class RefWidget extends WidgetType {
+  private ref: SharedBlockRef | null = null;
+
+  constructor(
+    private plugin: SharedBlocksPlugin,
+    private noteName: string,
+    private blockName: string,
+    private sourcePath: string,
+  ) {
+    super();
+  }
+
+  eq(other: RefWidget): boolean {
+    return (
+      other.noteName === this.noteName &&
+      other.blockName === this.blockName &&
+      other.sourcePath === this.sourcePath
+    );
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const holder = createDiv({ cls: 'sb-ref sb-live' });
+    // A click on the rendered block, other than on a link inside it, puts
+    // the cursor on the reference so it can be edited, as with an embed.
+    holder.addEventListener('mousedown', (event) => {
+      if (event.button !== 0 || (event.target as HTMLElement).closest('a')) return;
+      event.preventDefault();
+      const pos = view.posAtDOM(holder);
+      view.dispatch({ selection: { anchor: pos } });
+      view.focus();
+    });
+    this.ref = new SharedBlockRef(holder, this.plugin, this.noteName, this.blockName, this.sourcePath);
+    this.ref.load();
+    return holder;
+  }
+
+  destroy(): void {
+    this.ref?.unload();
+    this.ref = null;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
   }
 }
 
