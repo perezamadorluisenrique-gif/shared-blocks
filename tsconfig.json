@@ -10,9 +10,10 @@
     "strictNullChecks": true,
     "importHelpers": true,
     "lib": [
-      "ES2018",
+      "ES2019",
       "DOM"
-    ]
+    ],
+    "types": []
   },
   "include": [
     "**/*.ts"
