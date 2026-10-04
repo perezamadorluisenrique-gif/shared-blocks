@@ -18,9 +18,10 @@
 //   node review.mjs <plugin-id> --wait 1.2.3 --timeout 60 --settle 10   # minutes
 //   node review.mjs <plugin-id> --json
 //
-// Exit codes: 0 review passed; 1 review did not pass; 2 the directory did not
-// pick up the version in time (press "Check for new releases" on the
-// dashboard); 3 the page could not be read or parsed.
+// Exit codes: 0 review passed, or the plugin is not listed yet (nothing to
+// review: submit it at community.obsidian.md); 1 review did not pass; 2 the
+// directory did not pick up the version in time (press "Check for new
+// releases" on the dashboard); 3 the page could not be read or parsed.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -120,12 +121,22 @@ export function report(id, listing, { waitedFor = null, note = null } = {}) {
 	return lines.join('\n') + '\n';
 }
 
+export function notListedReport(id) {
+	return [
+		`### Directory review: ${id}`,
+		'',
+		`- This plugin is not in the directory yet, so there is nothing to review: ${SITE}/plugins/${id} does not exist.`,
+		`- To list it, submit this repository at ${SITE} (dashboard, submit a plugin). The directory then reviews every release by itself.`,
+		'',
+	].join('\n');
+}
+
 async function get(url) {
 	const res = await fetch(url, {
 		headers: { 'user-agent': 'Mozilla/5.0 (compatible; plugin-release-check)' },
 		redirect: 'follow',
 	});
-	if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+	if (!res.ok) throw Object.assign(new Error(`${url} answered ${res.status}`), { status: res.status });
 	return res.text();
 }
 
@@ -142,15 +153,23 @@ const signature = (l) => JSON.stringify([l.review, l.summary, l.findings]);
 // version's by its content alone, so after the version switches this waits
 // for the review to change, or for `settle` minutes if it never does (a
 // release that changes nothing the scan looks at keeps the same result).
-export async function waitFor(id, version, { timeout = 60, settle = 10, every = 1 } = {}) {
+//
+// A plugin that is not in the directory at all has a listing page that answers
+// 404. Waiting 75 minutes for a review that cannot start would only end in a
+// misleading failure, so after `missing` 404s in a row this gives up with
+// `notListed` and the caller says what to do (submit the plugin).
+export async function waitFor(id, version, { timeout = 60, settle = 10, every = 1, missing = 3 } = {}) {
 	const deadline = Date.now() + timeout * 60_000;
 	let before = null;
 	let switchedAt = null;
 	let last = null;
+	let notFound = 0;
 	for (;;) {
 		try {
 			last = await read(id);
+			notFound = 0;
 		} catch (err) {
+			if (err.status === 404 && ++notFound >= missing) return { listing: null, feedVersions: [], pickedUp: false, notListed: true };
 			console.log(`Could not read the listing yet: ${err.message}`);
 		}
 		if (last) {
@@ -190,6 +209,12 @@ async function main() {
 	} catch (err) {
 		console.error(`Could not read ${SITE}/plugins/${id}: ${err.message}`);
 		process.exit(3);
+	}
+	if (result.notListed) {
+		const text = notListedReport(id);
+		console.log(text);
+		if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);
+		process.exit(0);
 	}
 	if (!result.listing) {
 		console.error(`Could not read ${SITE}/plugins/${id}.`);
