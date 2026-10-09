@@ -29,16 +29,20 @@ import {
   blockNameFromKey,
   changedBlockNames,
   definitionLine,
+  fillPlaceholders,
+  formatRefValue,
   isValidBlockName,
   keyBelongsToFile,
   namesPath,
   parseBlocks,
   parseRef,
+  rawRefTexts,
   refLines,
   refQueryAt,
   rekey,
   retargetRefs,
   suggestBlockName,
+  valueStubs,
   wrapAsBlock,
 } from './src/blocks';
 
@@ -164,7 +168,7 @@ export default class SharedBlocksPlugin extends Plugin {
       icon: 'square-arrow-out-up-right',
       editorCheckCallback: (checking, editor, ctx) => {
         const line = editor.getLine(editor.getCursor().line);
-        const match = line.match(/==(ref:[^=]+?)==/);
+        const match = line.match(/==(ref:(?:(?!==).)+)==/);
         const ref = match ? parseRef(match[1]) : null;
         if (!ref) return false;
         if (!checking) void this.openDefinition(ref.noteName, ref.blockName, ctx.file?.path ?? '');
@@ -212,7 +216,7 @@ export default class SharedBlocksPlugin extends Plugin {
   }
 
   refText(entry: BlockEntry, sourcePath: string): string {
-    return `==ref:${this.linkText(entry.file, sourcePath)}^${entry.name}==`;
+    return `==ref:${this.linkText(entry.file, sourcePath)}^${entry.name}${valueStubs(entry.body)}==`;
   }
 
   /**
@@ -232,7 +236,7 @@ export default class SharedBlocksPlugin extends Plugin {
         changes: [{ from, to, text: wrapAsBlock(before, selection, after, name) }],
       });
 
-      const ref = `==ref:${file.basename}^${name}==`;
+      const ref = `==ref:${file.basename}^${name}${valueStubs(selection)}==`;
       navigator.clipboard.writeText(ref).then(
         () => new Notice(`Shared block "${name}" created. Reference copied: ${ref}`),
         () => new Notice(`Shared block "${name}" created. Reference: ${ref}`),
@@ -465,7 +469,7 @@ export default class SharedBlocksPlugin extends Plugin {
           line.from,
           line.to,
           Decoration.replace({
-            widget: new RefWidget(this, ref.noteName, ref.blockName, sourcePath),
+            widget: new RefWidget(this, ref.noteName, ref.blockName, ref.values, sourcePath),
             block: true,
           }),
         );
@@ -489,9 +493,28 @@ export default class SharedBlocksPlugin extends Plugin {
 
 
   private processElement(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
-    Array.from(el.querySelectorAll('mark')).forEach((mark) => {
+    const marks = Array.from(el.querySelectorAll('mark'));
+    if (marks.length === 0) return;
+
+    // The markdown renderer may have altered the values typed after a block
+    // name (a `*` or a backslash is read as markdown), so they are read again
+    // from the note's own text when the marks can be matched one to one.
+    let raw: ReturnType<typeof parseRef>[] = [];
+    const section = ctx.getSectionInfo(el);
+    if (section) {
+      const lines = section.text.split('\n').slice(section.lineStart, section.lineEnd + 1);
+      raw = rawRefTexts(lines.join('\n')).map((text) => parseRef(text));
+    }
+    const aligned = raw.length === marks.length;
+
+    marks.forEach((mark, i) => {
       const ref = parseRef(mark.textContent ?? '');
       if (!ref) return;
+      const original = aligned ? raw[i] : null;
+      const values =
+        original && original.noteName === ref.noteName && original.blockName === ref.blockName
+          ? original.values
+          : ref.values;
 
       const holder = createSpan({ cls: 'sb-ref' });
       mark.replaceWith(holder);
@@ -500,7 +523,7 @@ export default class SharedBlocksPlugin extends Plugin {
       // when the note is closed, onunload runs and everything the reference
       // rendered is released with it.
       ctx.addChild(
-        new SharedBlockRef(holder, this, ref.noteName, ref.blockName, ctx.sourcePath)
+        new SharedBlockRef(holder, this, ref.noteName, ref.blockName, values, ctx.sourcePath)
       );
     });
   }
@@ -531,6 +554,7 @@ class SharedBlockRef extends MarkdownRenderChild {
     private plugin: SharedBlocksPlugin,
     private noteName: string,
     private blockName: string,
+    private values: ReadonlyMap<string, string>,
     private sourcePath: string,
   ) {
     super(containerEl);
@@ -594,7 +618,7 @@ class SharedBlockRef extends MarkdownRenderChild {
     try {
       await MarkdownRenderer.render(
         this.plugin.app,
-        content,
+        fillPlaceholders(content, this.values),
         rendered,
         file.path,
         child,
@@ -682,6 +706,7 @@ class RefWidget extends WidgetType {
     private plugin: SharedBlocksPlugin,
     private noteName: string,
     private blockName: string,
+    private values: ReadonlyMap<string, string>,
     private sourcePath: string,
   ) {
     super();
@@ -691,6 +716,7 @@ class RefWidget extends WidgetType {
     return (
       other.noteName === this.noteName &&
       other.blockName === this.blockName &&
+      valuesKey(other.values) === valuesKey(this.values) &&
       other.sourcePath === this.sourcePath
     );
   }
@@ -706,7 +732,7 @@ class RefWidget extends WidgetType {
       view.dispatch({ selection: { anchor: pos } });
       view.focus();
     });
-    this.ref = new SharedBlockRef(holder, this.plugin, this.noteName, this.blockName, this.sourcePath);
+    this.ref = new SharedBlockRef(holder, this.plugin, this.noteName, this.blockName, this.values, this.sourcePath);
     this.ref.load();
     return holder;
   }
@@ -879,11 +905,22 @@ class RefSuggest extends EditorSuggest<BlockEntry> {
       editor.replaceRange(text, start, to);
       editor.setCursor({ line: start.line, ch: start.ch + text.length });
     } else {
-      const text = `${entry.name}==`;
+      // Values already typed after the name are kept as they are; otherwise
+      // the reference starts with an empty `name=""` for each placeholder.
+      const hasValues = !tail.endsWith('==') && /^[ \t][^\n]*==/.test(rest.slice(tail.length));
+      const stubs = hasValues ? '' : valueStubs(entry.body);
+      const text = hasValues ? entry.name : `${entry.name}${stubs}==`;
       editor.replaceRange(text, start, to);
-      editor.setCursor({ line: start.line, ch: start.ch + text.length });
+      // The cursor goes between the quotes of the first stub.
+      const inside = stubs === '' ? text.length : entry.name.length + stubs.indexOf('""') + 1;
+      editor.setCursor({ line: start.line, ch: start.ch + inside });
     }
   }
+}
+
+/** A value map as one string, to tell whether two references pass the same values. */
+function valuesKey(values: ReadonlyMap<string, string>): string {
+  return Array.from(values, ([key, value]) => `${key}=${formatRefValue(value)}`).sort().join(' ');
 }
 
 function yieldToUi(): Promise<void> {

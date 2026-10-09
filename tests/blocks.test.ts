@@ -10,7 +10,13 @@ import {
   keyBelongsToFile,
   namesPath,
   parseBlocks,
+  blockPlaceholders,
+  fillPlaceholders,
+  formatRefValue,
   parseRef,
+  parseRefValues,
+  rawRefTexts,
+  valueStubs,
   rekey,
   retargetRefs,
 } from '../src/blocks.ts';
@@ -82,6 +88,7 @@ test('parseRef reads a reference', () => {
   assert.deepEqual(parseRef('ref:Mi nota^resumen'), {
     noteName: 'Mi nota',
     blockName: 'resumen',
+    values: new Map(),
   });
 });
 
@@ -89,6 +96,7 @@ test('parseRef reads a reference into a subfolder', () => {
   assert.deepEqual(parseRef('ref:Proyectos/Plugins^estado'), {
     noteName: 'Proyectos/Plugins',
     blockName: 'estado',
+    values: new Map(),
   });
 });
 
@@ -98,6 +106,7 @@ test('parseRef accepts an accented block name', () => {
   assert.deepEqual(parseRef('ref:Nota^café'), {
     noteName: 'Nota',
     blockName: 'café',
+    values: new Map(),
   });
 });
 
@@ -105,6 +114,7 @@ test('parseRef tolerates surrounding whitespace', () => {
   assert.deepEqual(parseRef('  ref:Nota^bloque  '), {
     noteName: 'Nota',
     blockName: 'bloque',
+    values: new Map(),
   });
 });
 
@@ -233,13 +243,147 @@ test('refLines finds references on lines of their own', () => {
     '==ref:Folder/Note^é-1==',
   ];
   assert.deepEqual(refLines(lines), [
-    { line: 3, noteName: 'Note', blockName: 'intro' },
-    { line: 4, noteName: 'Other note', blockName: 'signature' },
-    { line: 9, noteName: 'Folder/Note', blockName: 'é-1' },
+    { line: 3, noteName: 'Note', blockName: 'intro', values: new Map() },
+    { line: 4, noteName: 'Other note', blockName: 'signature', values: new Map() },
+    { line: 9, noteName: 'Folder/Note', blockName: 'é-1', values: new Map() },
   ]);
 });
 
 test('definitionLine finds the share marker', () => {
   assert.equal(definitionLine('a\r\n==share:x==\r\nbody\r\n==/share==', 'x'), 1);
   assert.equal(definitionLine('==share:xy==\nb\n==/share==', 'x'), -1);
+});
+
+// ── Fill-in values ───────────────────────────────────────────────────────
+
+const vals = (text: string) => [...parseRefValues(text)];
+
+test('parseRef reads values after the block name', () => {
+  const ref = parseRef('ref:Mi nota^greeting name=Ana role="team lead"');
+
+  assert.equal(ref?.noteName, 'Mi nota');
+  assert.equal(ref?.blockName, 'greeting');
+  assert.deepEqual([...(ref?.values ?? [])], [['name', 'Ana'], ['role', 'team lead']]);
+});
+
+test('parseRef on a plain reference has no values', () => {
+  assert.equal(parseRef('ref:Nota^bloque')?.values.size, 0);
+});
+
+test('parseRefValues reads words, quoted strings and accented keys', () => {
+  assert.deepEqual(vals('a=1 b="two words" año=sí'), [['a', '1'], ['b', 'two words'], ['año', 'sí']]);
+});
+
+test('parseRefValues reads escaped quotes and backslashes', () => {
+  assert.deepEqual(vals('q="she said \\"hi\\" to me" p="C:\\\\dir"'), [
+    ['q', 'she said "hi" to me'],
+    ['p', 'C:\\dir'],
+  ]);
+});
+
+test('parseRefValues still reads a quote whose backslash the renderer ate', () => {
+  assert.deepEqual(vals('q="say "hi"! ok" r=2'), [['q', 'say "hi"! ok'], ['r', '2']]);
+});
+
+test('parseRefValues ignores what is not key=value', () => {
+  assert.deepEqual(vals('stray =x "loose" a=1 ==b'), [['a', '1']]);
+});
+
+test('parseRefValues lets the last duplicate key win', () => {
+  assert.deepEqual(vals('a=1 a=2'), [['a', '2']]);
+});
+
+test('parseRefValues treats an empty value as not given', () => {
+  assert.deepEqual(vals('a=1 a=""'), []);
+  assert.deepEqual(vals('a="" b=2'), [['b', '2']]);
+});
+
+test('parseRefValues survives an unterminated quote', () => {
+  assert.deepEqual(vals('a="open b=2'), [['a', 'open b=2']]);
+});
+
+test('formatRefValue output is read back unchanged', () => {
+  for (const value of ['Ana', 'team lead', 'say "hi"', 'back\\slash', 'a=b', ' pad ']) {
+    assert.deepEqual(vals(`k=${formatRefValue(value)}`), [['k', value]], value);
+  }
+});
+
+test('fillPlaceholders fills values and defaults', () => {
+  const body = 'Hi {{name}}, you are {{ role | guest }} on {{team|the team}}.';
+  const out = fillPlaceholders(body, new Map([['name', 'Ana'], ['team', 'Core']]));
+
+  assert.equal(out, 'Hi Ana, you are guest on Core.');
+});
+
+test('fillPlaceholders marks a missing value without a default', () => {
+  assert.equal(
+    fillPlaceholders('Hi {{name}}', new Map()),
+    'Hi <span class="sb-missing" title="No value for name">{{name}}</span>',
+  );
+});
+
+test('fillPlaceholders uses a given value over the default, and the same name everywhere', () => {
+  assert.equal(fillPlaceholders('{{a|x}} {{a|y}} {{a}}', new Map([['a', '1']])), '1 1 1');
+});
+
+test('fillPlaceholders does not re-read braces inside a value', () => {
+  assert.equal(fillPlaceholders('{{a}}', new Map([['a', '{{b}}']])), '{{b}}');
+});
+
+test('fillPlaceholders leaves code spans and fenced code untouched', () => {
+  const body = 'Use `{{name}}` for {{name}}.\n```\n{{name}}\n```\n~~~md\n{{name}}\n~~~\n{{name}}';
+  const out = fillPlaceholders(body, new Map([['name', 'Ana']]));
+
+  assert.equal(out, 'Use `{{name}}` for Ana.\n```\n{{name}}\n```\n~~~md\n{{name}}\n~~~\nAna');
+});
+
+test('fillPlaceholders returns text without placeholders exactly as it was', () => {
+  for (const body of ['Plain text', '{ single } and {{ }} and {{}}', 'a {{x y}} b', '']) {
+    assert.equal(fillPlaceholders(body, new Map([['x', '1']])), body);
+  }
+});
+
+test('blockPlaceholders lists names once, outside code', () => {
+  const body = '{{b}} {{a|x}} {{b}} `{{c}}`\n```\n{{d}}\n```';
+
+  assert.deepEqual(blockPlaceholders(body), ['b', 'a']);
+  assert.deepEqual(blockPlaceholders('nothing here'), []);
+});
+
+test('valueStubs gives one empty value per placeholder, or nothing', () => {
+  assert.equal(valueStubs('Hi {{name}} {{role|guest}}'), ' name="" role=""');
+  assert.equal(valueStubs('No blanks'), '');
+});
+
+test('a reference with stubs parses with no values, so defaults apply', () => {
+  const ref = parseRef('ref:N^b name="" role=""');
+
+  assert.equal(ref?.values.size, 0);
+});
+
+test('retargetRefs keeps the values after the block name', () => {
+  const rename = (name: string) => (name === 'Old' ? 'New' : null);
+  const content = 'x ==ref:Old^g name=Ana role="team lead"== y ==ref:Old^h==\n==ref:Other^g a=1==';
+  const result = retargetRefs(content, rename);
+
+  assert.equal(result.count, 2);
+  assert.equal(result.text, 'x ==ref:New^g name=Ana role="team lead"== y ==ref:New^h==\n==ref:Other^g a=1==');
+});
+
+test('retargetRefs does not mistake a highlight after a reference for its values', () => {
+  const result = retargetRefs('==ref:Old^g== and ==marked==', (n) => (n === 'Old' ? 'New' : null));
+
+  assert.equal(result.text, '==ref:New^g== and ==marked==');
+});
+
+test('rawRefTexts lists references outside code, with their values', () => {
+  const content = '==ref:A^x n="a b"== `==ref:B^y==`\n```\n==ref:C^z==\n```\n==ref:D^w==';
+
+  assert.deepEqual(rawRefTexts(content), ['ref:A^x n="a b"', 'ref:D^w']);
+});
+
+test('refLines reads values on a reference line', () => {
+  const [found] = refLines(['==ref:Note^greeting name=Ana role="team lead"==']);
+
+  assert.deepEqual([...found.values], [['name', 'Ana'], ['role', 'team lead']]);
 });

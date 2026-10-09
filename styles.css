@@ -48,3 +48,13 @@
      click on it goes back to the marker, so it reads as editable text. */
   cursor: text;
 }
+
+.sb-missing {
+  /* A {{placeholder}} the reference gave no value for and that has no
+     default, left in the text but marked so it is not mistaken for content. */
+  color: var(--text-error);
+  background: var(--background-modifier-error);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  cursor: help;
+}

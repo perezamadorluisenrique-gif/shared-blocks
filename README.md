@@ -59,6 +59,38 @@ blocks, then closes the reference for you.
 References can be nested: a shared block may itself contain a reference to
 another one. A cycle is detected and reported in place rather than hanging.
 
+### Blocks with fill-in values
+
+A block can be a small template. Write `{{name}}` where a value goes, or
+`{{name|default text}}` to give it a default:
+
+```markdown
+==share:greeting==
+Hello {{name}}, welcome to the {{team|support}} team.
+==/share==
+```
+
+A reference passes the values after the block name, as `key=value` pairs. Put
+a value in double quotes when it has spaces, and write `\"` for a quote inside
+it:
+
+```markdown
+==ref:Company handbook^greeting name=Ana team="customer success"==
+```
+
+This renders "Hello Ana, welcome to the customer success team." Leave `team`
+out and it reads "support". A placeholder with no value and no default stays in
+the text as `{{name}}`, highlighted, with the tooltip "No value for name".
+Keys the block does not use are ignored, and if a key is repeated the last one
+wins. Placeholders inside code spans and code blocks are left alone, so a
+block can show `{{name}}` as an example.
+
+References without values, and blocks without placeholders, render exactly as
+before. When you pick a block from the autocomplete or the insert command, the
+reference starts with an empty `name=""` for each placeholder, ready to fill
+in; an empty value counts as not given, so the default applies. Renaming or
+moving the note keeps the values in every reference.
+
 ## Commands
 
 | Command | What it does |

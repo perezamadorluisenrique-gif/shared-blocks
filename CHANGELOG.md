@@ -4,6 +4,11 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## Unreleased
+
+- **Blocks with fill-in values.** A shared block can contain `{{name}}` or `{{name|default}}`, and a reference fills them: `==ref:Note^greeting name=Ana role="team lead"==`. Missing values use the default, or show highlighted with a tooltip. Autocomplete adds `name=""` stubs, and renaming a note keeps the values.
+- References without values and blocks without placeholders render exactly as before.
+
 ## 0.4.1
 
 - Clears the directory review's type warnings: the TypeScript build now uses ES2019 and no Node typings, exactly as the review does. No change in behaviour.
