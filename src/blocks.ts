@@ -199,13 +199,26 @@ export function blockPlaceholders(body: string): string[] {
 export function fillPlaceholders(body: string, values: ReadonlyMap<string, string>): string {
   if (!body.includes('{{')) return body;
   return mapOutsideCode(body, (chunk) =>
-    chunk.replace(PLACEHOLDER, (_whole: string, name: string, fallback: string | undefined) => {
+    chunk.replace(PLACEHOLDER, (_whole: string, name: string, fallback: string | undefined, at: number) => {
       const given = values.get(name);
       if (given !== undefined) return given;
       if (fallback !== undefined) return fallback.trim();
+      // Inside a nested `==ref:…==` the marked span would break the
+      // reference, so a missing value is passed on empty, which the nested
+      // block reads as not given.
+      if (insideRefMarker(chunk, at)) return '';
       return `<span class="sb-missing" title="No value for ${name}">{{${name}}}</span>`;
     }),
   );
+}
+
+/** True when `at` falls inside a `==ref:…==` marker of `chunk`. */
+function insideRefMarker(chunk: string, at: number): boolean {
+  const marker = /==ref:(?:(?!==).)*==/g;
+  for (let m = marker.exec(chunk); m; m = marker.exec(chunk)) {
+    if (at >= m.index && at < m.index + m[0].length) return true;
+  }
+  return false;
 }
 
 /** The `name=""` stubs a reference to this block starts with, or ''. */

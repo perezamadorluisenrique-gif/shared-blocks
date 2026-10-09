@@ -387,3 +387,12 @@ test('refLines reads values on a reference line', () => {
 
   assert.deepEqual([...found.values], [['name', 'Ana'], ['role', 'team lead']]);
 });
+
+test('fillPlaceholders keeps a nested reference intact when its value is missing', () => {
+  const body = 'Hi {{who}} ==ref:N^g name={{who}} role={{r|boss}}== and {{gone}}';
+  const out = fillPlaceholders(body, new Map([['r', 'chief']]));
+
+  assert.ok(out.startsWith('Hi <span class="sb-missing" title="No value for who">{{who}}</span> ==ref:N^g name= role=chief== and '));
+  assert.equal(parseRef('ref:N^g name= role=chief')?.values.size, 1);
+  assert.ok(!/==ref:(?:(?!==).)*<span/.test(out));
+});
