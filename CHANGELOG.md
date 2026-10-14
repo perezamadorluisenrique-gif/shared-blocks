@@ -4,6 +4,10 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## 0.6.0
+
+- Interface available in 8 more languages (Simplified Chinese, Japanese, Korean, Spanish, German, French, Brazilian Portuguese and Russian), following Obsidian's language setting.
+
 ## 0.5.0
 
 - **Blocks with fill-in values.** A shared block can contain `{{name}}` or `{{name|default}}`, and a reference fills them: `==ref:Note^greeting name=Ana role="team lead"==`. Missing values use the default, or show highlighted with a tooltip. Autocomplete adds `name=""` stubs, and renaming a note keeps the values.
