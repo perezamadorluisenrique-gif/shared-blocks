@@ -45,6 +45,7 @@ import {
   valueStubs,
   wrapAsBlock,
 } from './src/blocks';
+import { t } from './src/i18n.ts';
 
 /** Notes scanned per chunk during a full refresh, before yielding. */
 const SCAN_CHUNK_SIZE = 50;
@@ -121,12 +122,12 @@ export default class SharedBlocksPlugin extends Plugin {
 
     this.addCommand({
       id: 'refresh-all-blocks',
-      name: 'Refresh all blocks',
+      name: t('command.refreshAll'),
       icon: 'refresh-cw',
       callback: async () => {
         await this.scanVault();
         await this.refreshRefs(null);
-        new Notice('Shared blocks refreshed');
+        new Notice(t('notice.refreshed'));
       },
     });
 
@@ -134,13 +135,13 @@ export default class SharedBlocksPlugin extends Plugin {
 
     this.addCommand({
       id: 'insert-reference',
-      name: 'Insert reference to a block',
+      name: t('command.insertReference'),
       icon: 'text-quote',
       editorCallback: (editor, ctx) => {
         const sourcePath = ctx.file?.path ?? '';
         void this.allBlocks().then((blocks) => {
           if (blocks.length === 0) {
-            new Notice('Shared Blocks: no blocks defined yet. Select some text and run "Share selection as a block".');
+            new Notice(t('notice.noBlocks', { command: t('command.shareSelection') }));
             return;
           }
           new BlockPicker(this.app, blocks, (entry) => {
@@ -152,7 +153,7 @@ export default class SharedBlocksPlugin extends Plugin {
 
     this.addCommand({
       id: 'share-selection',
-      name: 'Share selection as a block',
+      name: t('command.shareSelection'),
       icon: 'square-plus',
       editorCheckCallback: (checking, editor, ctx) => {
         const file = ctx.file;
@@ -164,7 +165,7 @@ export default class SharedBlocksPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-block-definition',
-      name: 'Open the block referenced on this line',
+      name: t('command.openDefinition'),
       icon: 'square-arrow-out-up-right',
       editorCheckCallback: (checking, editor, ctx) => {
         const line = editor.getLine(editor.getCursor().line);
@@ -178,10 +179,10 @@ export default class SharedBlocksPlugin extends Plugin {
 
     this.addCommand({
       id: 'show-cache-stats',
-      name: 'Show cache stats',
+      name: t('command.showCacheStats'),
       icon: 'info',
       callback: () => {
-        new Notice(`Shared blocks: ${this.blockCache.size} blocks in cache`);
+        new Notice(this.blockCache.size === 1 ? t('notice.cacheStats.one') : t('notice.cacheStats.other', { count: this.blockCache.size }));
       },
     });
   }
@@ -238,8 +239,8 @@ export default class SharedBlocksPlugin extends Plugin {
 
       const ref = `==ref:${file.basename}^${name}${valueStubs(selection)}==`;
       navigator.clipboard.writeText(ref).then(
-        () => new Notice(`Shared block "${name}" created. Reference copied: ${ref}`),
-        () => new Notice(`Shared block "${name}" created. Reference: ${ref}`),
+        () => new Notice(t('notice.created', { name, ref })),
+        () => new Notice(t('notice.createdNotCopied', { name, ref })),
       );
     }).open();
   }
@@ -412,7 +413,13 @@ export default class SharedBlocksPlugin extends Plugin {
     }
 
     if (refs > 0) {
-      new Notice(`Shared Blocks: updated ${refs} ${refs === 1 ? 'reference' : 'references'} in ${notes} ${notes === 1 ? 'note' : 'notes'}.`);
+      new Notice(
+        refs === 1
+          ? t('notice.refsUpdated.one')
+          : notes === 1
+            ? t('notice.refsUpdated.manyInOne', { refs })
+            : t('notice.refsUpdated.manyInMany', { refs, notes }),
+      );
     }
   }
 
@@ -431,12 +438,12 @@ export default class SharedBlocksPlugin extends Plugin {
   async openDefinition(noteName: string, blockName: string, sourcePath: string): Promise<void> {
     const file = this.app.metadataCache.getFirstLinkpathDest(noteName, sourcePath);
     if (!file) {
-      new Notice(`Shared Blocks: note "${noteName}" not found.`);
+      new Notice(t('notice.noteNotFound', { note: noteName }));
       return;
     }
     const line = definitionLine(await this.app.vault.cachedRead(file), blockName);
     if (line < 0) {
-      new Notice(`Shared Blocks: block "${blockName}" not found in "${noteName}".`);
+      new Notice(t('notice.blockNotFound', { block: blockName, note: noteName }));
       return;
     }
     await this.app.workspace.getLeaf(false).openFile(file, {
@@ -582,7 +589,7 @@ class SharedBlockRef extends MarkdownRenderChild {
 
     if (!file) {
       this.resolve(null);
-      this.showError(`Note "${this.noteName}" not found`);
+      this.showError(t('error.noteNotFound', { note: this.noteName }));
       return;
     }
 
@@ -591,7 +598,7 @@ class SharedBlockRef extends MarkdownRenderChild {
 
     if (content === undefined) {
       this.resolve(null);
-      this.showError(`Block "${this.blockName}" not found in "${this.noteName}"`);
+      this.showError(t('error.blockNotFound', { block: this.blockName, note: this.noteName }));
       return;
     }
 
@@ -599,7 +606,7 @@ class SharedBlockRef extends MarkdownRenderChild {
     this.resolve(key);
 
     if (this.hasAncestorRef(key)) {
-      this.showError(`Circular reference: ${this.noteName}^${this.blockName}`);
+      this.showError(t('error.circular', { note: this.noteName, block: this.blockName }));
       return;
     }
 
@@ -627,7 +634,7 @@ class SharedBlockRef extends MarkdownRenderChild {
       console.error('Shared Blocks: render error', e);
       this.removeChild(child);
       rendered.remove();
-      if (token === this.renderToken) this.showError('Error rendering block');
+      if (token === this.renderToken) this.showError(t('error.render'));
       return;
     }
 
@@ -765,7 +772,7 @@ class BlockPicker extends FuzzySuggestModal<BlockEntry> {
     private onChoose: (entry: BlockEntry) => void,
   ) {
     super(app);
-    this.setPlaceholder('Search shared blocks by name, note or text');
+    this.setPlaceholder(t('modal.searchPlaceholder'));
   }
 
   getItems(): BlockEntry[] {
@@ -797,21 +804,21 @@ class BlockNameModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.setText('Share selection as a block');
+    this.titleEl.setText(t('command.shareSelection'));
     const problem = this.contentEl.createDiv({ cls: 'sb-name-problem' });
     const submit = () => {
       const name = this.name.trim();
       if (!isValidBlockName(name)) {
-        problem.setText('Use letters, digits, _ and - only, with no spaces.');
+        problem.setText(t('modal.invalidName'));
       } else if (this.taken.has(name)) {
-        problem.setText(`This note already has a block named "${name}".`);
+        problem.setText(t('modal.nameTaken', { name }));
       } else {
         this.close();
         this.onSubmit(name);
       }
     };
 
-    new Setting(this.contentEl).setName('Block name').addText((text) => {
+    new Setting(this.contentEl).setName(t('modal.blockName')).addText((text) => {
       text.setValue(this.name).onChange((value) => {
         this.name = value;
         problem.setText('');
@@ -824,7 +831,7 @@ class BlockNameModal extends Modal {
       });
       window.setTimeout(() => text.inputEl.select(), 0);
     });
-    new Setting(this.contentEl).addButton((button) => button.setButtonText('Share').setCta().onClick(submit));
+    new Setting(this.contentEl).addButton((button) => button.setButtonText(t('modal.share')).setCta().onClick(submit));
   }
 
   onClose(): void {

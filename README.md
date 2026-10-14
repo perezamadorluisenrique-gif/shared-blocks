@@ -18,6 +18,8 @@ kind.
 _Left: the note that defines the block. Right: a note that uses it twice, in
 Reading view. Editing the definition updates both copies as you type._
 
+**Interface languages:** English, 简体中文, 日本語, 한국어, Español, Deutsch, Français, Português (Brasil) and Русский, following Obsidian's language setting. A translation that reads wrong? [Open an issue](https://github.com/perezamadorluisenrique-gif/shared-blocks/issues/new/choose) with the text and what it should say.
+
 ## How it works
 
 **Define a block** in any note, between two markers on lines of their own:
